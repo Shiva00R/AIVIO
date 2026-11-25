@@ -1,0 +1,6 @@
+{
+  "name": "Auto AI Switch",
+  "description": "Unified Multi-AI platform with intelligent automatic failover, provider quota monitoring, context transfer, and research workspace.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

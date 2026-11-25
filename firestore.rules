@@ -1,0 +1,389 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net: Default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isOwner(userId) {
+      return isVerifiedUser() && request.auth.uid == userId;
+    }
+
+    function isValidString(val, minLen, maxLen) {
+      return val is string && val.size() >= minLen && val.size() <= maxLen;
+    }
+
+    function isValidStringList(listVal, maxItems, maxItemLen) {
+      return listVal is list
+        && listVal.size() <= maxItems
+        && (listVal.size() == 0 || (listVal[0] is string && listVal[0].size() <= maxItemLen));
+    }
+
+    // --- Validation Blueprints ---
+
+    function isValidUserProfile(data, userId) {
+      return data.keys().hasAll([
+          'uid', 'email', 'displayName', 'theme', 'autoSwitchEnabled',
+          'preferredSpeed', 'preferredQuality', 'dailyBudgetUsd',
+          'maxTokensPerDay', 'alertThresholdPct', 'priorityOrder',
+          'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'email', 'displayName', 'theme', 'autoSwitchEnabled',
+          'preferredSpeed', 'preferredQuality', 'dailyBudgetUsd',
+          'maxTokensPerDay', 'alertThresholdPct', 'priorityOrder',
+          'createdAt', 'updatedAt'
+        ])
+        && data.uid == userId
+        && data.uid == request.auth.uid
+        && isValidString(data.uid, 1, 128)
+        && isValidString(data.email, 3, 254)
+        && isValidString(data.displayName, 1, 120)
+        && data.theme in ['light', 'dark']
+        && data.autoSwitchEnabled is bool
+        && data.preferredSpeed in ['fastest', 'balanced', 'quality']
+        && data.preferredQuality in ['standard', 'high', 'reasoning']
+        && (data.dailyBudgetUsd is int || data.dailyBudgetUsd is float)
+        && data.dailyBudgetUsd >= 0 && data.dailyBudgetUsd <= 100000
+        && data.maxTokensPerDay is int
+        && data.maxTokensPerDay >= 1000 && data.maxTokensPerDay <= 1000000000
+        && data.alertThresholdPct is int
+        && data.alertThresholdPct >= 10 && data.alertThresholdPct <= 100
+        && isValidStringList(data.priorityOrder, 8, 32)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidProviderConfig(data, userId, providerId) {
+      return data.keys().hasAll([
+          'userId', 'providerId', 'enabled', 'priority', 'preferredModel',
+          'keyHint', 'encryptedKey', 'iv', 'authTag', 'status',
+          'lastLatencyMs', 'quotaRemaining', 'quotaLimit', 'rateLimitReset',
+          'totalRequests', 'totalTokens', 'estimatedCostUsd', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'userId', 'providerId', 'enabled', 'priority', 'preferredModel',
+          'keyHint', 'encryptedKey', 'iv', 'authTag', 'status',
+          'lastLatencyMs', 'quotaRemaining', 'quotaLimit', 'rateLimitReset',
+          'totalRequests', 'totalTokens', 'estimatedCostUsd', 'updatedAt'
+        ])
+        && data.userId == userId
+        && data.userId == request.auth.uid
+        && data.providerId == providerId
+        && data.providerId in ['gemini', 'openai', 'claude', 'perplexity', 'deepseek', 'groq', 'mistral', 'notebooklm']
+        && data.enabled is bool
+        && data.priority is int && data.priority >= 1 && data.priority <= 20
+        && isValidString(data.preferredModel, 1, 100)
+        && isValidString(data.keyHint, 0, 32)
+        && isValidString(data.encryptedKey, 0, 1024)
+        && isValidString(data.iv, 0, 64)
+        && isValidString(data.authTag, 0, 64)
+        && data.status in ['online', 'limited', 'offline', 'disconnected']
+        && data.lastLatencyMs is int && data.lastLatencyMs >= 0 && data.lastLatencyMs <= 600000
+        && isValidString(data.quotaRemaining, 0, 120)
+        && isValidString(data.quotaLimit, 0, 120)
+        && isValidString(data.rateLimitReset, 0, 120)
+        && data.totalRequests is int && data.totalRequests >= 0
+        && data.totalTokens is int && data.totalTokens >= 0
+        && (data.estimatedCostUsd is int || data.estimatedCostUsd is float) && data.estimatedCostUsd >= 0
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidConversation(data, userId) {
+      return data.keys().hasAll([
+          'userId', 'title', 'workspaceType', 'activeProvider', 'activeModel',
+          'autoMode', 'systemInstruction', 'totalTokens', 'estimatedCostUsd',
+          'messageCount', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'userId', 'title', 'workspaceType', 'activeProvider', 'activeModel',
+          'autoMode', 'systemInstruction', 'totalTokens', 'estimatedCostUsd',
+          'messageCount', 'createdAt', 'updatedAt'
+        ])
+        && data.userId == userId
+        && data.userId == request.auth.uid
+        && isValidString(data.title, 1, 200)
+        && data.workspaceType in ['chat', 'notebook']
+        && isValidString(data.activeProvider, 1, 32)
+        && isValidString(data.activeModel, 1, 100)
+        && data.autoMode is bool
+        && isValidString(data.systemInstruction, 0, 4000)
+        && data.totalTokens is int && data.totalTokens >= 0
+        && (data.estimatedCostUsd is int || data.estimatedCostUsd is float) && data.estimatedCostUsd >= 0
+        && data.messageCount is int && data.messageCount >= 0
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidChatMessage(data, userId, conversationId) {
+      return data.keys().hasAll([
+          'userId', 'conversationId', 'role', 'content', 'provider', 'model',
+          'switchedFrom', 'switchReason', 'tokensInput', 'tokensOutput',
+          'costUsd', 'latencyMs', 'attachmentNames', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'userId', 'conversationId', 'role', 'content', 'provider', 'model',
+          'switchedFrom', 'switchReason', 'tokensInput', 'tokensOutput',
+          'costUsd', 'latencyMs', 'attachmentNames', 'createdAt'
+        ])
+        && data.userId == userId
+        && data.userId == request.auth.uid
+        && data.conversationId == conversationId
+        && data.role in ['user', 'assistant', 'system']
+        && isValidString(data.content, 1, 100000)
+        && isValidString(data.provider, 0, 32)
+        && isValidString(data.model, 0, 100)
+        && isValidString(data.switchedFrom, 0, 32)
+        && isValidString(data.switchReason, 0, 300)
+        && data.tokensInput is int && data.tokensInput >= 0
+        && data.tokensOutput is int && data.tokensOutput >= 0
+        && (data.costUsd is int || data.costUsd is float) && data.costUsd >= 0
+        && data.latencyMs is int && data.latencyMs >= 0
+        && isValidStringList(data.attachmentNames, 5, 200)
+        && data.createdAt is timestamp;
+    }
+
+    function isValidSwitchEvent(data, userId) {
+      return data.keys().hasAll([
+          'userId', 'conversationId', 'fromProvider', 'toProvider',
+          'reason', 'errorCode', 'latencyMs', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'userId', 'conversationId', 'fromProvider', 'toProvider',
+          'reason', 'errorCode', 'latencyMs', 'createdAt'
+        ])
+        && data.userId == userId
+        && data.userId == request.auth.uid
+        && isValidString(data.conversationId, 1, 128)
+        && isValidString(data.fromProvider, 1, 32)
+        && isValidString(data.toProvider, 1, 32)
+        && isValidString(data.reason, 1, 300)
+        && isValidString(data.errorCode, 1, 64)
+        && data.latencyMs is int && data.latencyMs >= 0
+        && data.createdAt is timestamp;
+    }
+
+    function isValidResearchSource(data, userId) {
+      return data.keys().hasAll([
+          'userId', 'title', 'sourceType', 'mimeType', 'sizeBytes',
+          'extractedText', 'summary', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'userId', 'title', 'sourceType', 'mimeType', 'sizeBytes',
+          'extractedText', 'summary', 'createdAt'
+        ])
+        && data.userId == userId
+        && data.userId == request.auth.uid
+        && isValidString(data.title, 1, 200)
+        && data.sourceType in ['document', 'pdf', 'note', 'url_excerpt']
+        && isValidString(data.mimeType, 1, 100)
+        && data.sizeBytes is int && data.sizeBytes >= 0 && data.sizeBytes <= 20000000
+        && isValidString(data.extractedText, 1, 150000)
+        && isValidString(data.summary, 0, 4000)
+        && data.createdAt is timestamp;
+    }
+
+    function isValidUsageDaily(data, userId, dateId) {
+      return data.keys().hasAll([
+          'userId', 'date', 'requests', 'tokensInput', 'tokensOutput',
+          'estimatedCostUsd', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'userId', 'date', 'requests', 'tokensInput', 'tokensOutput',
+          'estimatedCostUsd', 'updatedAt'
+        ])
+        && data.userId == userId
+        && data.userId == request.auth.uid
+        && data.date == dateId
+        && data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && data.requests is int && data.requests >= 0
+        && data.tokensInput is int && data.tokensInput >= 0
+        && data.tokensOutput is int && data.tokensOutput >= 0
+        && (data.estimatedCostUsd is int || data.estimatedCostUsd is float) && data.estimatedCostUsd >= 0
+        && data.updatedAt is timestamp;
+    }
+
+    // --- Collection Rules ---
+
+    match /users/{userId} {
+      allow get: if isValidId(userId) && isOwner(userId);
+      allow list: if false;
+      allow create: if isValidId(userId)
+        && isOwner(userId)
+        && isValidUserProfile(incoming(), userId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(userId)
+        && isOwner(userId)
+        && isValidUserProfile(incoming(), userId)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'displayName', 'theme', 'autoSwitchEnabled', 'preferredSpeed',
+            'preferredQuality', 'dailyBudgetUsd', 'maxTokensPerDay',
+            'alertThresholdPct', 'priorityOrder', 'updatedAt'
+          ])
+        );
+      allow delete: if isValidId(userId) && isOwner(userId);
+
+      match /providers/{providerId} {
+        allow get: if isValidId(userId) && isValidId(providerId) && isOwner(userId);
+        allow list: if isOwner(userId) && resource.data.userId == request.auth.uid;
+        allow create: if isValidId(userId)
+          && isValidId(providerId)
+          && isOwner(userId)
+          && isValidProviderConfig(incoming(), userId, providerId)
+          && incoming().updatedAt == request.time;
+        allow update: if isValidId(userId)
+          && isValidId(providerId)
+          && isOwner(userId)
+          && isValidProviderConfig(incoming(), userId, providerId)
+          && incoming().userId == existing().userId
+          && incoming().providerId == existing().providerId
+          && incoming().updatedAt == request.time
+          && (
+            // Action: Update Credentials or Priority/Model
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'enabled', 'priority', 'preferredModel', 'keyHint',
+              'encryptedKey', 'iv', 'authTag', 'status', 'updatedAt'
+            ]) ||
+            // Action: Telemetry & Quota Sync
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'status', 'lastLatencyMs', 'quotaRemaining', 'quotaLimit',
+              'rateLimitReset', 'totalRequests', 'totalTokens',
+              'estimatedCostUsd', 'updatedAt'
+            ])
+          );
+        allow delete: if isValidId(userId) && isValidId(providerId) && isOwner(userId);
+      }
+
+      match /conversations/{conversationId} {
+        allow get: if isValidId(userId) && isValidId(conversationId) && isOwner(userId);
+        allow list: if isOwner(userId) && resource.data.userId == request.auth.uid;
+        allow create: if isValidId(userId)
+          && isValidId(conversationId)
+          && isOwner(userId)
+          && isValidConversation(incoming(), userId)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+        allow update: if isValidId(userId)
+          && isValidId(conversationId)
+          && isOwner(userId)
+          && isValidConversation(incoming(), userId)
+          && incoming().userId == existing().userId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && (
+            // Action: Metadata/Provider settings update
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'title', 'activeProvider', 'activeModel', 'autoMode',
+              'systemInstruction', 'updatedAt'
+            ]) ||
+            // Action: Usage & Message Count increment
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'title', 'activeProvider', 'activeModel', 'totalTokens',
+              'estimatedCostUsd', 'messageCount', 'updatedAt'
+            ])
+          );
+        allow delete: if isValidId(userId) && isValidId(conversationId) && isOwner(userId);
+
+        match /messages/{messageId} {
+          allow get: if isValidId(userId)
+            && isValidId(conversationId)
+            && isValidId(messageId)
+            && isOwner(userId)
+            && get(/databases/$(database)/documents/users/$(userId)/conversations/$(conversationId)).data.userId == request.auth.uid;
+          allow list: if isOwner(userId) && resource.data.userId == request.auth.uid;
+          allow create: if isValidId(userId)
+            && isValidId(conversationId)
+            && isValidId(messageId)
+            && isOwner(userId)
+            && isValidChatMessage(incoming(), userId, conversationId)
+            && incoming().createdAt == request.time
+            && exists(/databases/$(database)/documents/users/$(userId)/conversations/$(conversationId))
+            && get(/databases/$(database)/documents/users/$(userId)/conversations/$(conversationId)).data.userId == request.auth.uid;
+          allow update: if false;
+          allow delete: if isValidId(userId)
+            && isValidId(conversationId)
+            && isValidId(messageId)
+            && isOwner(userId)
+            && get(/databases/$(database)/documents/users/$(userId)/conversations/$(conversationId)).data.userId == request.auth.uid;
+        }
+      }
+
+      match /switchEvents/{eventId} {
+        allow get: if isValidId(userId) && isValidId(eventId) && isOwner(userId);
+        allow list: if isOwner(userId) && resource.data.userId == request.auth.uid;
+        allow create: if isValidId(userId)
+          && isValidId(eventId)
+          && isOwner(userId)
+          && isValidSwitchEvent(incoming(), userId)
+          && incoming().createdAt == request.time;
+        allow update: if false;
+        allow delete: if isValidId(userId) && isValidId(eventId) && isOwner(userId);
+      }
+
+      match /sources/{sourceId} {
+        allow get: if isValidId(userId) && isValidId(sourceId) && isOwner(userId);
+        allow list: if isOwner(userId) && resource.data.userId == request.auth.uid;
+        allow create: if isValidId(userId)
+          && isValidId(sourceId)
+          && isOwner(userId)
+          && isValidResearchSource(incoming(), userId)
+          && incoming().createdAt == request.time;
+        allow update: if isValidId(userId)
+          && isValidId(sourceId)
+          && isOwner(userId)
+          && isValidResearchSource(incoming(), userId)
+          && incoming().userId == existing().userId
+          && incoming().createdAt == existing().createdAt
+          && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'summary']);
+        allow delete: if isValidId(userId) && isValidId(sourceId) && isOwner(userId);
+      }
+
+      match /usageDaily/{dateId} {
+        allow get: if isValidId(userId) && isValidId(dateId) && isOwner(userId);
+        allow list: if isOwner(userId) && resource.data.userId == request.auth.uid;
+        allow create: if isValidId(userId)
+          && isValidId(dateId)
+          && isOwner(userId)
+          && isValidUsageDaily(incoming(), userId, dateId)
+          && incoming().updatedAt == request.time;
+        allow update: if isValidId(userId)
+          && isValidId(dateId)
+          && isOwner(userId)
+          && isValidUsageDaily(incoming(), userId, dateId)
+          && incoming().userId == existing().userId
+          && incoming().date == existing().date
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly([
+            'requests', 'tokensInput', 'tokensOutput', 'estimatedCostUsd', 'updatedAt'
+          ]);
+        allow delete: if isValidId(userId) && isValidId(dateId) && isOwner(userId);
+      }
+    }
+  }
+}

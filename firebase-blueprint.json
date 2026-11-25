@@ -1,0 +1,170 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User account preferences, budget limits, and smart AI provider priority configuration.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "email": { "type": "string", "maxLength": 254 },
+        "displayName": { "type": "string", "maxLength": 120 },
+        "theme": { "type": "string", "enum": ["light", "dark"], "maxLength": 10 },
+        "autoSwitchEnabled": { "type": "boolean" },
+        "preferredSpeed": { "type": "string", "enum": ["fastest", "balanced", "quality"], "maxLength": 20 },
+        "preferredQuality": { "type": "string", "enum": ["standard", "high", "reasoning"], "maxLength": 20 },
+        "dailyBudgetUsd": { "type": "number" },
+        "maxTokensPerDay": { "type": "integer" },
+        "alertThresholdPct": { "type": "integer" },
+        "priorityOrder": { "type": "array", "description": "Ordered provider IDs, max 8 items." },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "displayName", "theme", "autoSwitchEnabled", "preferredSpeed", "preferredQuality", "dailyBudgetUsd", "maxTokensPerDay", "alertThresholdPct", "priorityOrder", "createdAt", "updatedAt"]
+    },
+    "ProviderConfig": {
+      "title": "ProviderConfig",
+      "description": "Per-provider status, encrypted user credential metadata, rate limits, and cumulative usage.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "providerId": { "type": "string", "enum": ["gemini", "openai", "claude", "perplexity", "deepseek", "groq", "mistral", "notebooklm"], "maxLength": 32 },
+        "enabled": { "type": "boolean" },
+        "priority": { "type": "integer" },
+        "preferredModel": { "type": "string", "maxLength": 100 },
+        "keyHint": { "type": "string", "maxLength": 32 },
+        "encryptedKey": { "type": "string", "maxLength": 1024 },
+        "iv": { "type": "string", "maxLength": 64 },
+        "authTag": { "type": "string", "maxLength": 64 },
+        "status": { "type": "string", "enum": ["online", "limited", "offline", "disconnected"], "maxLength": 20 },
+        "lastLatencyMs": { "type": "integer" },
+        "quotaRemaining": { "type": "string", "maxLength": 120 },
+        "quotaLimit": { "type": "string", "maxLength": 120 },
+        "rateLimitReset": { "type": "string", "maxLength": 120 },
+        "totalRequests": { "type": "integer" },
+        "totalTokens": { "type": "integer" },
+        "estimatedCostUsd": { "type": "number" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "providerId", "enabled", "priority", "preferredModel", "keyHint", "encryptedKey", "iv", "authTag", "status", "lastLatencyMs", "quotaRemaining", "quotaLimit", "rateLimitReset", "totalRequests", "totalTokens", "estimatedCostUsd", "updatedAt"]
+    },
+    "Conversation": {
+      "title": "Conversation",
+      "description": "A persistent AI chat or NotebookLM research conversation thread.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "title": { "type": "string", "maxLength": 200 },
+        "workspaceType": { "type": "string", "enum": ["chat", "notebook"], "maxLength": 20 },
+        "activeProvider": { "type": "string", "maxLength": 32 },
+        "activeModel": { "type": "string", "maxLength": 100 },
+        "autoMode": { "type": "boolean" },
+        "systemInstruction": { "type": "string", "maxLength": 4000 },
+        "totalTokens": { "type": "integer" },
+        "estimatedCostUsd": { "type": "number" },
+        "messageCount": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "workspaceType", "activeProvider", "activeModel", "autoMode", "systemInstruction", "totalTokens", "estimatedCostUsd", "messageCount", "createdAt", "updatedAt"]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "A single message turn inside a conversation, including failover telemetry.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "conversationId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "role": { "type": "string", "enum": ["user", "assistant", "system"], "maxLength": 20 },
+        "content": { "type": "string", "maxLength": 100000 },
+        "provider": { "type": "string", "maxLength": 32 },
+        "model": { "type": "string", "maxLength": 100 },
+        "switchedFrom": { "type": "string", "maxLength": 32 },
+        "switchReason": { "type": "string", "maxLength": 300 },
+        "tokensInput": { "type": "integer" },
+        "tokensOutput": { "type": "integer" },
+        "costUsd": { "type": "number" },
+        "latencyMs": { "type": "integer" },
+        "attachmentNames": { "type": "array", "description": "Up to 5 attached filenames." },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "conversationId", "role", "content", "provider", "model", "switchedFrom", "switchReason", "tokensInput", "tokensOutput", "costUsd", "latencyMs", "attachmentNames", "createdAt"]
+    },
+    "SwitchEvent": {
+      "title": "SwitchEvent",
+      "description": "Audit log of automatic provider failovers.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "conversationId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "fromProvider": { "type": "string", "maxLength": 32 },
+        "toProvider": { "type": "string", "maxLength": 32 },
+        "reason": { "type": "string", "maxLength": 300 },
+        "errorCode": { "type": "string", "maxLength": 64 },
+        "latencyMs": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "conversationId", "fromProvider", "toProvider", "reason", "errorCode", "latencyMs", "createdAt"]
+    },
+    "ResearchSource": {
+      "title": "ResearchSource",
+      "description": "Uploaded document, PDF extract, or research note in the NotebookLM workspace.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "title": { "type": "string", "maxLength": 200 },
+        "sourceType": { "type": "string", "enum": ["document", "pdf", "note", "url_excerpt"], "maxLength": 32 },
+        "mimeType": { "type": "string", "maxLength": 100 },
+        "sizeBytes": { "type": "integer" },
+        "extractedText": { "type": "string", "maxLength": 150000 },
+        "summary": { "type": "string", "maxLength": 4000 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "sourceType", "mimeType", "sizeBytes", "extractedText", "summary", "createdAt"]
+    },
+    "UsageDaily": {
+      "title": "UsageDaily",
+      "description": "Daily aggregated token consumption and API expenditure per user.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "date": { "type": "string", "maxLength": 16, "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
+        "requests": { "type": "integer" },
+        "tokensInput": { "type": "integer" },
+        "tokensOutput": { "type": "integer" },
+        "estimatedCostUsd": { "type": "number" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "date", "requests", "tokensInput", "tokensOutput", "estimatedCostUsd", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Owner-only user profile and smart routing configuration."
+    },
+    "/users/{userId}/providers/{providerId}": {
+      "schema": { "$ref": "#/entities/ProviderConfig" },
+      "description": "Per-provider encrypted key metadata and telemetry."
+    },
+    "/users/{userId}/conversations/{conversationId}": {
+      "schema": { "$ref": "#/entities/Conversation" },
+      "description": "User chat and research conversation threads."
+    },
+    "/users/{userId}/conversations/{conversationId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/ChatMessage" },
+      "description": "Messages belonging to a user conversation."
+    },
+    "/users/{userId}/switchEvents/{eventId}": {
+      "schema": { "$ref": "#/entities/SwitchEvent" },
+      "description": "Automatic provider failover history log."
+    },
+    "/users/{userId}/sources/{sourceId}": {
+      "schema": { "$ref": "#/entities/ResearchSource" },
+      "description": "Research workspace source materials and summaries."
+    },
+    "/users/{userId}/usageDaily/{dateId}": {
+      "schema": { "$ref": "#/entities/UsageDaily" },
+      "description": "Daily token and cost ledger."
+    }
+  }
+}
